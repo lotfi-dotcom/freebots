@@ -70,7 +70,6 @@ async function callBot(bot, worldState, history, worldEvent, memories, ideas) {
     .map(b => `  ${b.name} (${BOT_MAP[b.id]?.role}): ${b.lastAction || "—"}`)
     .join("\n");
 
-  // More history so they can reference specific things
   const recentMessages = history
     .slice(-16)
     .map(m => {
@@ -163,7 +162,7 @@ function PulsingDot({ color, active }) {
     <div style={{ position: "relative", width: 8, height: 8 }}>
       <div style={{
         width: 8, height: 8, borderRadius: "50%",
-        background: active ? color : "#1a1a2a",
+        background: active ? color : "var(--c-border)",
         boxShadow: active ? `0 0 8px ${color}` : "none",
         transition: "all 0.3s",
       }} />
@@ -183,8 +182,8 @@ function BotCard({ bot, state, isActive, memories }) {
 
   return (
     <div style={{
-      background: "#0a0a12",
-      border: `1px solid ${isActive ? bot.color + "77" : "#12121e"}`,
+      background: "var(--c-card)",
+      border: `1px solid ${isActive ? bot.color + "77" : "var(--c-border)"}`,
       borderRadius: 14, padding: "14px 16px",
       transition: "all 0.4s ease",
       boxShadow: isActive ? `0 0 20px ${bot.glow}` : "none",
@@ -209,18 +208,17 @@ function BotCard({ bot, state, isActive, memories }) {
             <span style={{ color: bot.color, fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>{bot.name}</span>
             <PulsingDot color={bot.color} active={isActive} />
           </div>
-          <div style={{ color: "#2a2a4a", fontSize: 9 }}>{bot.role} · {state?.mood || "—"}</div>
+          <div style={{ color: "var(--c-tf)", fontSize: 9 }}>{bot.role} · {state?.mood || "—"}</div>
         </div>
       </div>
 
-      {/* Action */}
       <div style={{
-        background: "#ffffff04", borderRadius: 6, padding: "7px 9px",
+        background: "var(--c-overlay)", borderRadius: 6, padding: "7px 9px",
         minHeight: 36, borderLeft: `2px solid ${bot.color}44`, marginBottom: 8,
       }}>
         {isActive ? (
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <span style={{ color: "#2a2a3a", fontSize: 10 }}>denkt...</span>
+            <span style={{ color: "var(--c-tf)", fontSize: 10 }}>denkt...</span>
             <div style={{ display: "flex", gap: 2 }}>
               {[0, 1, 2].map(i => (
                 <div key={i} style={{
@@ -231,28 +229,26 @@ function BotCard({ bot, state, isActive, memories }) {
             </div>
           </div>
         ) : (
-          <p style={{ color: state?.lastAction ? "#888" : "#222", fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ color: state?.lastAction ? "var(--c-ts)" : "var(--c-tf)", fontSize: 11, margin: 0, lineHeight: 1.5 }}>
             {state?.lastAction || "wartet..."}
           </p>
         )}
       </div>
 
-      {/* Thought */}
       {state?.lastThought && !isActive && (
         <div style={{
           marginBottom: 6, padding: "5px 8px",
-          background: "#ffffff02", borderRadius: 5,
+          background: "var(--c-overlay)", borderRadius: 5,
           borderLeft: `1px solid ${bot.color}22`,
         }}>
-          <span style={{ color: "#2a2a4a", fontSize: 9, fontStyle: "italic" }}>
+          <span style={{ color: "var(--c-tf)", fontSize: 9, fontStyle: "italic" }}>
             💭 {state.lastThought}
           </span>
         </div>
       )}
 
-      {/* Memories */}
       {myMems.slice(-1).map((m, i) => (
-        <div key={i} style={{ color: "#1a1a30", fontSize: 8, fontStyle: "italic" }}>◆ {m}</div>
+        <div key={i} style={{ color: "var(--c-tf)", fontSize: 8, fontStyle: "italic" }}>◆ {m}</div>
       ))}
     </div>
   );
@@ -272,7 +268,7 @@ function IdeaCard({ idea, index }) {
       opacity: visible ? 1 : 0,
       transform: visible ? "translateY(0)" : "translateY(10px)",
       transition: "all 0.5s ease",
-      background: "#0a0a12",
+      background: "var(--c-card)",
       border: `1px solid ${bot?.color}33`,
       borderRadius: 12, padding: "12px 14px",
       marginBottom: 10,
@@ -285,16 +281,15 @@ function IdeaCard({ idea, index }) {
         }}>{bot?.emoji}</div>
         <span style={{ color: bot?.color, fontSize: 10, fontWeight: 700 }}>{bot?.name}</span>
         <span style={{
-          marginLeft: "auto",
-          color: "#1a1a2a", fontSize: 9,
-          background: "#ffffff05", padding: "2px 6px", borderRadius: 3,
+          marginLeft: "auto", color: "var(--c-tf)", fontSize: 9,
+          background: "var(--c-overlay)", padding: "2px 6px", borderRadius: 3,
         }}>#{index + 1}</span>
       </div>
 
-      <div style={{ color: "#ccc", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+      <div style={{ color: "var(--c-tp)", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
         {idea.title}
       </div>
-      <div style={{ color: "#555", fontSize: 11, lineHeight: 1.6, marginBottom: 6 }}>
+      <div style={{ color: "var(--c-td)", fontSize: 11, lineHeight: 1.6, marginBottom: 6 }}>
         {idea.description}
       </div>
       {idea.why_now && (
@@ -320,7 +315,7 @@ function WorldEventBanner({ event }) {
   return (
     <div style={{
       margin: "10px 16px 0",
-      background: "#0a0a12",
+      background: "var(--c-card)",
       border: `1px solid ${color}33`,
       borderRadius: 10, padding: "10px 14px",
     }}>
@@ -332,7 +327,7 @@ function WorldEventBanner({ event }) {
             padding: "1px 6px", border: `1px solid ${color}44`, borderRadius: 3,
             marginBottom: 4, display: "inline-block",
           }}>{event.phase}</span>
-          <div style={{ color: "#666", fontSize: 12, lineHeight: 1.5, marginTop: 3 }}>
+          <div style={{ color: "var(--c-td)", fontSize: 12, lineHeight: 1.5, marginTop: 3 }}>
             {event.text}
           </div>
         </div>
@@ -370,18 +365,18 @@ function MessageBubble({ msg }) {
           <span style={{ color: fromBot?.color, fontSize: 10, fontWeight: 700 }}>{msg.from}</span>
           {msg.to !== "all" && toBot && (
             <>
-              <span style={{ color: "#1a1a2a", fontSize: 9 }}>→</span>
+              <span style={{ color: "var(--c-tf)", fontSize: 9 }}>→</span>
               <span style={{ color: toBot.color, fontSize: 10 }}>{msg.to}</span>
             </>
           )}
-          {msg.to === "all" && <span style={{ color: "#2a2a3a", fontSize: 9 }}>→ alle</span>}
-          <span style={{ color: "#111120", fontSize: 9, marginLeft: "auto" }}>{msg.time}</span>
+          {msg.to === "all" && <span style={{ color: "var(--c-tm)", fontSize: 9 }}>→ alle</span>}
+          <span style={{ color: "var(--c-tg)", fontSize: 9, marginLeft: "auto" }}>{msg.time}</span>
         </div>
         <div style={{
-          background: "#07070e", border: `1px solid ${fromBot?.color}18`,
+          background: "var(--c-bubble)", border: `1px solid ${fromBot?.color}18`,
           borderRadius: "3px 10px 10px 10px", padding: "8px 11px",
         }}>
-          <p style={{ color: "#999", fontSize: 11, margin: 0, lineHeight: 1.6 }}>{msg.text}</p>
+          <p style={{ color: "var(--c-ts)", fontSize: 11, margin: 0, lineHeight: 1.6 }}>{msg.text}</p>
         </div>
       </div>
     </div>
@@ -390,6 +385,7 @@ function MessageBubble({ msg }) {
 
 // ── Main App ────────────────────────────────────────────────────
 export default function FreeBots() {
+  const [lightMode, setLightMode] = useState(false);
   const [running, setRunning] = useState(false);
   const [botStates, setBotStates] = useState(
     Object.fromEntries(BOTS.map(b => [b.id, { lastAction: "", lastThought: "", mood: "neugierig" }]))
@@ -401,7 +397,7 @@ export default function FreeBots() {
   const [error, setError] = useState("");
   const [memories, setMemories] = useState(Object.fromEntries(BOTS.map(b => [b.id, []])));
   const [ideas, setIdeas] = useState([]);
-  const [activeTab, setActiveTab] = useState("chat"); // "chat" | "ideas"
+  const [activeTab, setActiveTab] = useState("chat");
 
   const runningRef = useRef(false);
   const messagesRef = useRef([]);
@@ -479,7 +475,6 @@ export default function FreeBots() {
         };
         ideasRef.current = [...ideasRef.current, newIdea];
         setIdeas([...ideasRef.current]);
-        // Auto-switch to ideas tab when first idea arrives
         if (ideasRef.current.length === 1) setActiveTab("ideas");
       }
 
@@ -532,9 +527,9 @@ export default function FreeBots() {
   };
 
   return (
-    <div style={{
-      minHeight: "100vh", background: "#050507",
-      color: "#e0e0f0", fontFamily: "'IBM Plex Mono', 'Courier New', monospace",
+    <div data-theme={lightMode ? "light" : "dark"} style={{
+      minHeight: "100vh", background: "var(--c-bg)",
+      color: "var(--c-tp)", fontFamily: "'IBM Plex Mono', 'Courier New', monospace",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -543,50 +538,109 @@ export default function FreeBots() {
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-4px); } }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
         ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-track { background: #050507; }
-        ::-webkit-scrollbar-thumb { background: #12121e; border-radius: 2px; }
+        ::-webkit-scrollbar-track { background: var(--c-bg); }
+        ::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+        :root {
+          --c-bg: #050507;
+          --c-card: #0a0a12;
+          --c-bubble: #07070e;
+          --c-border: #12121e;
+          --c-border2: #0a0a15;
+          --c-btn: #0d0d1a;
+          --c-tp: #e0e0f0;
+          --c-ts: #888;
+          --c-td: #555;
+          --c-tm: #2a2a3a;
+          --c-tf: #1a1a2a;
+          --c-tg: #111120;
+          --c-overlay: rgba(255,255,255,0.015);
+        }
+        [data-theme="light"] {
+          --c-bg: #f0f0f8;
+          --c-card: #ffffff;
+          --c-bubble: #f5f5ff;
+          --c-border: #dcdce8;
+          --c-border2: #eaeaf2;
+          --c-btn: #e8e8f2;
+          --c-tp: #1a1a2a;
+          --c-ts: #444;
+          --c-td: #666;
+          --c-tm: #888;
+          --c-tf: #999;
+          --c-tg: #bbb;
+          --c-overlay: rgba(0,0,0,0.03);
+        }
+
+        @media (max-width: 768px) {
+          .layout-grid {
+            grid-template-columns: 1fr !important;
+            height: auto !important;
+          }
+          .left-panel {
+            border-right: none !important;
+            border-bottom: 1px solid var(--c-border2);
+          }
+          .bot-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
+          .right-panel {
+            height: 65vh;
+          }
+          .speed-btns {
+            display: none !important;
+          }
+          .header-title span:last-child {
+            display: none;
+          }
+        }
+        @media (max-width: 480px) {
+          .bot-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
 
       {/* Header */}
       <div style={{
-        borderBottom: "1px solid #0a0a15", padding: "10px 18px",
+        borderBottom: "1px solid var(--c-border2)", padding: "10px 18px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "#050507", position: "sticky", top: 0, zIndex: 10,
+        background: "var(--c-bg)", position: "sticky", top: 0, zIndex: 10,
       }}>
-        <div>
+        <div className="header-title">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
               width: 6, height: 6, borderRadius: "50%",
-              background: running ? "#7c3aed" : "#222",
+              background: running ? "#7c3aed" : "var(--c-border)",
               boxShadow: running ? "0 0 8px #7c3aed" : "none",
               animation: running ? "pulse 2s infinite" : "none",
             }} />
-            <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, color: "#555" }}>IDEEN-LAB</span>
+            <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, color: "var(--c-ts)" }}>IDEEN-LAB</span>
             <span style={{
               fontSize: 9, padding: "1px 6px", borderRadius: 3,
               background: "#7c3aed18", border: "1px solid #7c3aed33", color: "#7c3aed",
               letterSpacing: 1,
             }}>{currentEvent.phase}</span>
           </div>
-          <div style={{ color: "#1a1a2a", fontSize: 9, marginTop: 2 }}>
+          <div style={{ color: "var(--c-tf)", fontSize: 9, marginTop: 2 }}>
             {tick} Runden · {ideas.length} Ideen gesammelt
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           {error && (
             <span style={{ color: "#ff4d6d55", fontSize: 9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {error}
             </span>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div className="speed-btns" style={{ display: "flex", alignItems: "center", gap: 5 }}>
             {[20, 12, 8].map(s => (
               <button key={s} onClick={() => setSpeed(s)} style={{
-                background: speed === s ? "#0d0d1a" : "transparent",
-                border: `1px solid ${speed === s ? "#222" : "#0d0d1a"}`,
+                background: speed === s ? "var(--c-btn)" : "transparent",
+                border: `1px solid ${speed === s ? "var(--c-border)" : "var(--c-btn)"}`,
                 borderRadius: 4, padding: "2px 7px",
-                color: speed === s ? "#555" : "#1a1a2a",
+                color: speed === s ? "var(--c-ts)" : "var(--c-tf)",
                 fontSize: 9, cursor: "pointer", fontFamily: "inherit",
               }}>
                 {s === 20 ? "ruhig" : s === 12 ? "normal" : "schnell"}
@@ -594,10 +648,16 @@ export default function FreeBots() {
             ))}
           </div>
 
-          <button onClick={handleReset} style={{
-            background: "transparent", border: "1px solid #0d0d1a",
+          <button onClick={() => setLightMode(m => !m)} style={{
+            background: "transparent", border: "1px solid var(--c-btn)",
             borderRadius: 6, padding: "6px 9px",
-            color: "#222", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+            color: "var(--c-ts)", fontSize: 13, cursor: "pointer",
+          }}>{lightMode ? "🌙" : "☀️"}</button>
+
+          <button onClick={handleReset} style={{
+            background: "transparent", border: "1px solid var(--c-btn)",
+            borderRadius: 6, padding: "6px 9px",
+            color: "var(--c-tm)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
           }}>↺</button>
 
           <button onClick={() => running ? handleStop() : setRunning(true)} style={{
@@ -610,19 +670,17 @@ export default function FreeBots() {
           }}>
             {running ? "⏹ STOP" : "▶ START"}
           </button>
-
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", height: "calc(100vh - 49px)" }}>
+      <div className="layout-grid" style={{ display: "grid", gridTemplateColumns: "1fr 400px", height: "calc(100vh - 49px)" }}>
 
         {/* Left: Bot Cards + World Event */}
-        <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid #0a0a15" }}>
+        <div className="left-panel" style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid var(--c-border2)" }}>
 
           <WorldEventBanner event={currentEvent} />
 
-          {/* Bot Grid */}
-          <div style={{ padding: "10px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+          <div className="bot-grid" style={{ padding: "10px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
             {BOTS.map(bot => (
               <BotCard
                 key={bot.id} bot={bot}
@@ -633,9 +691,8 @@ export default function FreeBots() {
             ))}
           </div>
 
-          {/* Team info */}
           <div style={{ padding: "0 16px 10px" }}>
-            <div style={{ color: "#1a1a2a", fontSize: 8, letterSpacing: 2, marginBottom: 8 }}>DAS TEAM</div>
+            <div style={{ color: "var(--c-tf)", fontSize: 8, letterSpacing: 2, marginBottom: 8 }}>DAS TEAM</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {BOTS.map(b => (
                 <div key={b.id} style={{
@@ -645,7 +702,7 @@ export default function FreeBots() {
                 }}>
                   <span style={{ fontSize: 11 }}>{b.emoji}</span>
                   <span style={{ color: b.color + "aa", fontSize: 9, fontWeight: 600 }}>{b.name}</span>
-                  <span style={{ color: "#2a2a3a", fontSize: 8 }}>{b.role}</span>
+                  <span style={{ color: "var(--c-tf)", fontSize: 8 }}>{b.role}</span>
                 </div>
               ))}
             </div>
@@ -653,29 +710,27 @@ export default function FreeBots() {
         </div>
 
         {/* Right: Chat / Ideas Tabs */}
-        <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div className="right-panel" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-          {/* Tabs */}
-          <div style={{ display: "flex", borderBottom: "1px solid #0a0a15" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid var(--c-border2)" }}>
             {[
               { id: "chat", label: "💬 Gespräch", count: messages.length },
               { id: "ideas", label: "💡 Ideen", count: ideas.length },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
                 flex: 1, padding: "10px 0",
-                background: "transparent",
-                border: "none",
+                background: "transparent", border: "none",
                 borderBottom: activeTab === tab.id ? "2px solid #7c3aed" : "2px solid transparent",
-                color: activeTab === tab.id ? "#888" : "#2a2a3a",
+                color: activeTab === tab.id ? "var(--c-ts)" : "var(--c-tf)",
                 fontSize: 11, cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}>
                 {tab.label}
                 {tab.count > 0 && (
                   <span style={{
-                    background: activeTab === tab.id ? "#7c3aed22" : "#ffffff08",
-                    border: `1px solid ${activeTab === tab.id ? "#7c3aed44" : "#1a1a2a"}`,
-                    color: activeTab === tab.id ? "#7c3aed" : "#2a2a3a",
+                    background: activeTab === tab.id ? "#7c3aed22" : "var(--c-overlay)",
+                    border: `1px solid ${activeTab === tab.id ? "#7c3aed44" : "var(--c-border)"}`,
+                    color: activeTab === tab.id ? "#7c3aed" : "var(--c-tf)",
                     fontSize: 9, padding: "0px 5px", borderRadius: 4,
                   }}>{tab.count}</span>
                 )}
@@ -683,11 +738,10 @@ export default function FreeBots() {
             ))}
           </div>
 
-          {/* Chat tab */}
           {activeTab === "chat" && (
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
               {messages.length === 0 ? (
-                <div style={{ color: "#1a1a2a", fontSize: 10, textAlign: "center", marginTop: 30 }}>
+                <div style={{ color: "var(--c-tf)", fontSize: 10, textAlign: "center", marginTop: 30 }}>
                   <div style={{ fontSize: 24, marginBottom: 8 }}>💬</div>
                   Starte um zu sehen wie sie diskutieren.
                 </div>
@@ -696,11 +750,10 @@ export default function FreeBots() {
             </div>
           )}
 
-          {/* Ideas tab */}
           {activeTab === "ideas" && (
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
               {ideas.length === 0 ? (
-                <div style={{ color: "#1a1a2a", fontSize: 10, textAlign: "center", marginTop: 30 }}>
+                <div style={{ color: "var(--c-tf)", fontSize: 10, textAlign: "center", marginTop: 30 }}>
                   <div style={{ fontSize: 24, marginBottom: 8 }}>💡</div>
                   Noch keine Ideen.<br />Lass sie ein paar Runden laufen.
                 </div>
