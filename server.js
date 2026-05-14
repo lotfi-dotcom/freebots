@@ -83,4 +83,5 @@ const server = createServer(async (req, res) => {
   res.end();
 });
 
-server.listen(3001, () => console.log("API server running on http://localhost:3001"));
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => console.log(`API server running on port ${PORT}`));
