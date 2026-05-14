@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+.env
+.env.*
+built-apps/*/
+!built-apps/.gitkeep
+build-queue/*.md
+!build-queue/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

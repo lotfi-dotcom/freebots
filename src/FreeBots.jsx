@@ -155,6 +155,256 @@ Antworte auf Deutsch. Sei direkt. Diskutiere wirklich.`;
   return JSON.parse(clean);
 }
 
+async function callApiBot(systemPrompt, userContent, maxTokens = 4000) {
+  const res = await fetch("/api/bot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: `${systemPrompt}\n\n${userContent}` }],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const text = data.content?.map(b => b.text || "").join("") || "";
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+
+async function callAnalyseBot(ideas) {
+  const ideasText = ideas.map((idea, i) =>
+    `Idee ${i + 1}: "${idea.title}"\nBeschreibung: ${idea.description}\nWarum jetzt: ${idea.why_now || "—"}`
+  ).join("\n\n");
+
+  return callApiBot(`Du bist ein erfahrener Startup-Analyst. Analysiere jede App-Idee anhand einer 10-Punkte Checkliste.
+Für jeden Punkt: kurze ehrliche Bewertung (2-3 Sätze) + Emoji-Verdict (✅ gut / ⚠️ mittel / ❌ schwach).
+Bonus am Ende: was erfüllt ist, was fehlt.
+
+Antworte NUR mit diesem JSON (keine Backticks):
+{
+  "analyses": [
+    {
+      "title": "exakter Titel",
+      "checklist": [
+        { "nr": 1, "name": "Problemdefinition", "verdict": "✅", "text": "..." },
+        { "nr": 2, "name": "Zielgruppe", "verdict": "⚠️", "text": "..." },
+        { "nr": 3, "name": "Nutzen / Value Proposition", "verdict": "✅", "text": "..." },
+        { "nr": 4, "name": "Wettbewerb", "verdict": "⚠️", "text": "..." },
+        { "nr": 5, "name": "MVP Machbarkeit", "verdict": "✅", "text": "..." },
+        { "nr": 6, "name": "Monetarisierung", "verdict": "✅", "text": "..." },
+        { "nr": 7, "name": "Validierung", "verdict": "❌", "text": "..." },
+        { "nr": 8, "name": "Marketing / Nutzergewinnung", "verdict": "⚠️", "text": "..." },
+        { "nr": 9, "name": "Technik / Umsetzung", "verdict": "✅", "text": "..." },
+        { "nr": 10, "name": "Launch-Plan", "verdict": "⚠️", "text": "..." }
+      ],
+      "bonus": {
+        "erfuellt": ["Punkt 1", "Punkt 3"],
+        "fehlt": ["Punkt 7"]
+      }
+    }
+  ]
+}`, ideasText, 5000);
+}
+
+async function callScoringBot(ideas, analyses) {
+  const ideasText = ideas.map((idea, i) => {
+    const analyse = analyses.find(a => a.title === idea.title);
+    const checklistSummary = analyse?.checklist.map(c => `${c.nr}. ${c.name}: ${c.verdict}`).join(", ") || "";
+    return `Idee ${i + 1}: "${idea.title}"\n${idea.description}\nCheckliste: ${checklistSummary}`;
+  }).join("\n\n");
+
+  return callApiBot(`Du bist ein objektiver Startup-Bewerter. Bewerte jede Idee mit dem Go/No-Go Modell.
+Bewertungsskala pro Kategorie: 0=schlecht, 1=mittel, 2=gut, 3=sehr stark.
+Max 24 Punkte. Entscheidung: 18-24=BAUEN🔥, 12-17=VERBESSERN⚠️, 0-11=NICHT BAUEN❌.
+
+Antworte NUR mit diesem JSON (keine Backticks):
+{
+  "scores": [
+    {
+      "title": "exakter Titel",
+      "kategorien": [
+        { "name": "Problem", "punkte": 2, "max": 3, "kommentar": "..." },
+        { "name": "Zielgruppe", "punkte": 2, "max": 3, "kommentar": "..." },
+        { "name": "Nutzen / Value", "punkte": 2, "max": 3, "kommentar": "..." },
+        { "name": "Wettbewerb", "punkte": 1, "max": 3, "kommentar": "..." },
+        { "name": "MVP Machbarkeit", "punkte": 3, "max": 3, "kommentar": "..." },
+        { "name": "Monetarisierung", "punkte": 2, "max": 3, "kommentar": "..." },
+        { "name": "Validierung", "punkte": 1, "max": 3, "kommentar": "..." },
+        { "name": "Marketing / Wachstum", "punkte": 1, "max": 3, "kommentar": "..." }
+      ],
+      "gesamt": 14,
+      "entscheidung": "VERBESSERN",
+      "emoji": "⚠️",
+      "realityCheck": {
+        "wuerdejemandZahlen": true,
+        "wuerdejemandSuchen": false,
+        "kannInMVP": true,
+        "riskant": true
+      },
+      "profi": {
+        "problemStark": true,
+        "geldMoeglich": true,
+        "nutzerErreichbar": false,
+        "fazit": "2 von 3 Profi-Kriterien erfüllt"
+      }
+    }
+  ]
+}`, ideasText, 4000);
+}
+
+async function callBerichtBot(ideas, analyses, scores) {
+  const ideasText = ideas.map((idea, i) => {
+    const score = scores.find(s => s.title === idea.title);
+    return `Idee ${i + 1}: "${idea.title}"
+Beschreibung: ${idea.description}
+Score: ${score?.gesamt}/24 — ${score?.entscheidung} ${score?.emoji}
+Reality Check: zahlen=${score?.realityCheck?.wuerdejemandZahlen}, suchen=${score?.realityCheck?.wuerdejemandSuchen}, MVP=${score?.realityCheck?.kannInMVP}`;
+  }).join("\n\n");
+
+  return callApiBot(`Du bist ein erfahrener Produkt-Stratege. Schreibe für jede Idee einen klaren Entscheidungsbericht.
+Der Bericht soll präzise, ehrlich und direkt sein. Er wird anschließend an einen Prompt-Generator übergeben.
+
+Antworte NUR mit diesem JSON (keine Backticks):
+{
+  "berichte": [
+    {
+      "title": "exakter Titel",
+      "name": "App-Name (kann kreativ sein)",
+      "kurzbeschreibung": "Was die App macht, für wen, und warum jetzt (3-4 Sätze)",
+      "staerken": ["Stärke 1", "Stärke 2", "Stärke 3"],
+      "risiken": ["Risiko 1", "Risiko 2"],
+      "empfehlung": "Konkrete Handlungsempfehlung (2-3 Sätze)",
+      "weitermachen": true
+    }
+  ]
+}`, ideasText, 3000);
+}
+
+async function callPromptBot(berichte, allIdeas) {
+  const ideasText = berichte.map((b, i) => {
+    const original = allIdeas.find(a => a.title === b.title);
+    return `${i + 1}. "${b.name || b.title}"
+   Beschreibung: ${b.kurzbeschreibung || original?.description || ""}
+   Stärken: ${(b.staerken || []).join(", ")}
+   Risiken: ${(b.risiken || []).join(", ")}
+   Empfehlung: ${b.empfehlung || ""}`;
+  }).join("\n\n");
+
+  const prompt = `Du bist ein Weltklasse Product Architect, Senior Prompt Engineer für KI-Coding-Agenten, und UI/UX-Experte mit 15 Jahren Erfahrung.
+
+Hier sind validierte App-Ideen:
+
+${ideasText}
+
+══ TECH-STACK ENTSCHEIDUNG ══
+Überlege sehr genau welcher Stack wirklich passt:
+
+📱 MOBILE APP (wenn Zielgruppe hauptsächlich Smartphone nutzt, Kamera/GPS/Push-Notifications braucht):
+→ React Native + Expo (iOS & Android gleichzeitig)
+→ Navigation: @react-navigation/native + bottom-tabs + stack
+→ State: Zustand
+→ Styling: NativeWind (Tailwind für RN) + react-native-reanimated
+→ Backend: Supabase (auth + db + storage)
+
+🌐 WEB APP / SAAS / DASHBOARD (Browser, Desktop):
+→ React + Vite + TailwindCSS v3 + shadcn/ui
+→ State: Zustand + React Query (TanStack)
+→ Backend: Node.js + Express + Prisma + PostgreSQL ODER Supabase
+→ Auth: Supabase Auth
+
+🔧 CLI / AUTOMATISIERUNG:
+→ Node.js + Commander.js + Chalk + Ora
+
+🖥️ DESKTOP:
+→ Tauri + React + TailwindCSS
+
+══ UI-QUALITÄTSSTANDARDS (IMMER PFLICHT — KEINE AUSNAHMEN) ══
+Jeder Prompt MUSS diese UI-Anforderungen enthalten:
+- Professionelles Design-System: Farbpalette mit exakten Hex-Codes definieren, Typografie-Skala, Spacing-System
+- Dark Mode als Standard + Light Mode Toggle
+- Micro-Animationen: Framer Motion (Web) oder react-native-reanimated (Mobile)
+- Loading States: Skeleton Screens statt einfacher Spinner
+- Error States: Toast Notifications (react-hot-toast oder Sonner)
+- Empty States: mit Icon/Illustration und Call-to-Action
+- Glassmorphism-Akzente, subtile Gradienten, professionelle Schatten
+- Custom Scrollbars, Hover-Effekte, Focus-Ring-Styles
+- Icons: Lucide React (Web) oder @expo/vector-icons (Mobile)
+- Schrift: Inter oder Geist (Google Fonts / Expo Google Fonts)
+- Responsive: Mobile-first für Web (Breakpoints: sm/md/lg/xl)
+- Accessibility: ARIA-Labels, Keyboard Navigation, ausreichende Kontraste
+
+══ VOLLSTÄNDIGER PROMPT-AUFBAU (12 PFLICHT-SEKTIONEN) ══
+Jeder Build-Prompt muss ALLE diese Punkte detailliert abdecken:
+1. App-Name + Tagline (wie ein Startup-Pitch, prägnant)
+2. Problem + Zielgruppe (wer leidet, wie stark, warum jetzt)
+3. Monetarisierungsmodell (konkret: Preise, Stripe-Integration, Freemium-Grenze)
+4. Tech-Stack (ALLE Pakete + Versionen, Begründung warum dieser Stack)
+5. Datenbankschema (Tabellen, Felder, Beziehungen)
+6. Vollständige Dateistruktur (alle Ordner und Dateien die erstellt werden)
+7. MVP Feature-Liste (Must-Have priorisiert, Nice-to-Have separat)
+8. UI/UX-Beschreibung (ALLE Screens, Layouts, Farbpalette mit Hex-Codes, Stimmung, Animationen)
+9. Authentifizierung (Google OAuth / Email / Magic Link — konkretes Setup)
+10. API-Endpunkte (alle Routes mit Method + Payload beschreiben)
+11. Deployment-Plan (Vercel / Railway / Expo EAS / App Store — konkreter Befehl)
+12. Abschluss: "Wenn fertig: git add . && git commit -m '[app-name]: initial build by FreeBots' && git push"
+
+══ FÜR MOBILE APPS ZUSÄTZLICH PFLICHT ══
+- Expo-Setup: npx create-expo-app@latest [name] --template blank-typescript
+- Navigation-Baum (Bottom Tabs, Stack Navigator, Modal-Screens)
+- Push Notifications Setup (Expo Notifications + Supabase Edge Functions)
+- App-Icon + Splash Screen Spezifikation (Farben, Icon-Design)
+- WICHTIGER HINWEIS: "Dies ist eine MOBILE APP. Baue mit React Native + Expo. Kein Web-Browser-Build."
+- App Store / Play Store Beschreibung (kurz, für Submission)
+
+Antworte NUR mit diesem JSON (keine Backticks):
+{
+  "selected": [
+    {
+      "title": "exakter Titel der Idee",
+      "category": "top oder anpassung",
+      "stack": "z.B. React Native + Expo oder React + Vite + TailwindCSS + shadcn/ui",
+      "isMobile": false,
+      "stackReason": "Warum genau dieser Stack (2-3 Sätze)",
+      "prompt": "Der vollständige Build-Prompt — alle 12 Sektionen, professionell, detailliert, 500-700 Wörter"
+    }
+  ]
+}`;
+
+  const res = await fetch("/api/bot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 14000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.map(b => b.text || "").join("") || "";
+  const clean = text.replace(/```json|```/g, "").trim();
+  return JSON.parse(clean);
+}
+
+async function sendNtfyNotification(message, title) {
+  const res = await fetch("/api/notify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, title }),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Fehler");
+  return data;
+}
+
 // ── Sub-components ──────────────────────────────────────────────
 
 function PulsingDot({ color, active }) {
@@ -398,6 +648,14 @@ export default function FreeBots() {
   const [memories, setMemories] = useState(Object.fromEntries(BOTS.map(b => [b.id, []])));
   const [ideas, setIdeas] = useState([]);
   const [activeTab, setActiveTab] = useState("chat");
+  const [pipelineState, setPipelineState] = useState("idle");
+  const [analyseItems, setAnalyseItems] = useState([]);
+  const [scoringItems, setScoringItems] = useState([]);
+  const [berichtItems, setBerichtItems] = useState([]);
+  const [pipelineItems, setPipelineItems] = useState([]);
+  const [copiedIdx, setCopiedIdx] = useState(null);
+  const [ntfyStatus, setNtfyStatus] = useState("idle");
+  const [buildStatus, setBuildStatus] = useState({});
 
   const runningRef = useRef(false);
   const messagesRef = useRef([]);
@@ -505,6 +763,12 @@ export default function FreeBots() {
 
     const next = async () => {
       if (!runningRef.current) return;
+      if (ideasRef.current.length >= 2) {
+        runningRef.current = false;
+        setRunning(false);
+        setActiveBot(null);
+        return;
+      }
       const bot = BOTS[botIndex % BOTS.length];
       await runBotTurn(bot);
       botIndex++;
@@ -523,7 +787,104 @@ export default function FreeBots() {
     setMemories(Object.fromEntries(BOTS.map(b => [b.id, []])));
     setBotStates(Object.fromEntries(BOTS.map(b => [b.id, { lastAction: "", lastThought: "", mood: "neugierig" }])));
     messagesRef.current = []; ideasRef.current = [];
+    setPipelineState("idle"); setAnalyseItems([]); setScoringItems([]); setBerichtItems([]); setPipelineItems([]);
+    setBuildStatus({}); setNtfyStatus("idle");
     setActiveTab("chat");
+  };
+
+  const handleStartPipeline = async () => {
+    if (ideasRef.current.length === 0) return;
+    const ideas = ideasRef.current;
+    setActiveTab("pipeline");
+    setAnalyseItems([]); setScoringItems([]); setBerichtItems([]); setPipelineItems([]);
+
+    setPipelineState("analysing");
+    let analyses = [];
+    try {
+      const r = await callAnalyseBot(ideas);
+      analyses = r.analyses || [];
+      setAnalyseItems(analyses);
+    } catch (e) { setError(`Analyse: ${e.message}`); setPipelineState("idle"); return; }
+
+    setPipelineState("scoring");
+    let scores = [];
+    try {
+      const r = await callScoringBot(ideas, analyses);
+      scores = r.scores || [];
+      setScoringItems(scores);
+    } catch (e) { setError(`Scoring: ${e.message}`); setPipelineState("idle"); return; }
+
+    setPipelineState("reporting");
+    let berichte = [];
+    try {
+      const r = await callBerichtBot(ideas, analyses, scores);
+      berichte = r.berichte || [];
+      setBerichtItems(berichte);
+    } catch (e) { setError(`Bericht: ${e.message}`); setPipelineState("idle"); return; }
+
+    setPipelineState("generating");
+    try {
+      const r = await callPromptBot(berichte, ideas);
+      const items = r.selected || [];
+      setPipelineItems(items);
+      setPipelineState("done");
+      fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "FreeBots — Pipeline fertig!",
+          message: `${items.length} Build-Prompt${items.length !== 1 ? "s" : ""} bereit:\n${items.map((it, i) => `${i + 1}. ${it.title}`).join("\n")}`,
+        }),
+      }).catch(() => {});
+    } catch (e) { setError(`Prompt Generator: ${e.message}`); setPipelineState("idle"); }
+  };
+
+  const handleSendNtfy = async () => {
+    const topIdeas = pipelineItems.slice(0, 3).map((p, i) => `${i + 1}. ${p.title}`).join("\n");
+    try {
+      await sendNtfyNotification(`Build-Prompts fertig!\n\n${topIdeas}`, "FreeBots — Prompts bereit");
+      setNtfyStatus("sent");
+      setTimeout(() => setNtfyStatus("idle"), 4000);
+    } catch (e) {
+      setError(`Notify: ${e.message}`);
+      setNtfyStatus("error");
+      setTimeout(() => setNtfyStatus("idle"), 3000);
+    }
+  };
+
+  const handleCopy = (text, idx) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const handleDownload = (item, idx) => {
+    const content = `# ${item.title}\n\n**Stack:** ${item.stack}\n**Typ:** ${item.isMobile ? "📱 Mobile App (React Native + Expo)" : "🌐 Web App"}\n**Begründung:** ${item.stackReason}\n\n---\n\n## Build-Prompt für Claude Code\n\n${item.prompt}`;
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `build-prompt-${idx + 1}-${item.title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 30)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBuildN8n = async (item, idx) => {
+    setBuildStatus(s => ({ ...s, [idx]: "sending" }));
+    try {
+      const res = await fetch("http://localhost:5678/webhook/freebots-build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: item.title, prompt: item.prompt, stack: item.stack || "" }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setBuildStatus(s => ({ ...s, [idx]: "sent" }));
+      setTimeout(() => setBuildStatus(s => ({ ...s, [idx]: "idle" })), 5000);
+    } catch (e) {
+      setError(`Build: ${e.message}`);
+      setBuildStatus(s => ({ ...s, [idx]: "error" }));
+      setTimeout(() => setBuildStatus(s => ({ ...s, [idx]: "idle" })), 4000);
+    }
   };
 
   return (
@@ -716,6 +1077,7 @@ export default function FreeBots() {
             {[
               { id: "chat", label: "💬 Gespräch", count: messages.length },
               { id: "ideas", label: "💡 Ideen", count: ideas.length },
+              { id: "pipeline", label: "🚀 Pipeline", count: pipelineItems.length },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
                 flex: 1, padding: "10px 0",
@@ -757,8 +1119,330 @@ export default function FreeBots() {
                   <div style={{ fontSize: 24, marginBottom: 8 }}>💡</div>
                   Noch keine Ideen.<br />Lass sie ein paar Runden laufen.
                 </div>
-              ) : ideas.map((idea, i) => <IdeaCard key={idea.id} idea={idea} index={i} />)}
+              ) : (
+                <>
+                  {ideas.map((idea, i) => <IdeaCard key={idea.id} idea={idea} index={i} />)}
+                  <button
+                    onClick={handleStartPipeline}
+                    disabled={["analysing","scoring","reporting","generating"].includes(pipelineState)}
+                    style={{
+                      width: "100%", marginTop: 8, marginBottom: 12, padding: "10px 0",
+                      background: ["analysing","scoring","reporting","generating"].includes(pipelineState) ? "transparent" : "linear-gradient(135deg, #7c3aed, #ea580c)",
+                      border: ["analysing","scoring","reporting","generating"].includes(pipelineState) ? "1px solid #7c3aed44" : "none",
+                      borderRadius: 8, color: ["analysing","scoring","reporting","generating"].includes(pipelineState) ? "#7c3aed66" : "#fff",
+                      fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1,
+                    }}
+                  >
+                    {["analysing","scoring","reporting","generating"].includes(pipelineState) ? "⏳ Pipeline läuft..." : pipelineState === "done" ? "↺ Neu starten" : "🚀 PIPELINE STARTEN"}
+                  </button>
+                </>
+              )}
               <div ref={ideasEndRef} />
+            </div>
+          )}
+
+          {activeTab === "pipeline" && (
+            <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
+
+              {/* Phase stepper */}
+              {pipelineState !== "idle" && (() => {
+                const phases = [
+                  { id: "analysing",  done: ["scoring","reporting","generating","done"], label: "1. Analyse",  icon: "🔍" },
+                  { id: "scoring",    done: ["reporting","generating","done"],            label: "2. Go/No-Go", icon: "🎯" },
+                  { id: "reporting",  done: ["generating","done"],                        label: "3. Bericht",  icon: "📋" },
+                  { id: "generating", done: ["done"],                                     label: "4. Prompts",  icon: "✍️" },
+                ];
+                return (
+                  <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+                    {phases.map(p => {
+                      const isActive = pipelineState === p.id;
+                      const isDone = p.done.includes(pipelineState);
+                      return (
+                        <div key={p.id} style={{
+                          flex: 1, padding: "6px 4px", borderRadius: 8, textAlign: "center",
+                          background: isDone ? "#3dba7e12" : isActive ? "#7c3aed12" : "var(--c-card)",
+                          border: `1px solid ${isDone ? "#3dba7e33" : isActive ? "#7c3aed33" : "var(--c-border)"}`,
+                        }}>
+                          <div style={{ fontSize: 12, marginBottom: 2 }}>{p.icon}</div>
+                          <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.5, color: isDone ? "#3dba7e" : isActive ? "#7c3aed" : "var(--c-tf)" }}>{p.label}</div>
+                          {isDone && <div style={{ fontSize: 7, color: "#3dba7e88" }}>✓</div>}
+                          {isActive && <div style={{ fontSize: 7, color: "#7c3aed88", animation: "pulse 1.5s infinite" }}>●</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* IDLE */}
+              {pipelineState === "idle" && (
+                <div style={{ color: "var(--c-tf)", fontSize: 10, textAlign: "center", marginTop: 30 }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🚀</div>
+                  Geh zum Ideen-Tab und starte die Pipeline.
+                </div>
+              )}
+
+              {/* PHASE 1 loading */}
+              {pipelineState === "analysing" && analyseItems.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: 30 }}>
+                  <div style={{ fontSize: 28, marginBottom: 10, animation: "pulse 1.5s infinite" }}>🔍</div>
+                  <div style={{ color: "#7c3aed", fontWeight: 700, fontSize: 11, marginBottom: 4 }}>10-Punkte Analyse läuft...</div>
+                  <div style={{ color: "var(--c-tf)", fontSize: 10 }}>Bewertet Problemdefinition, Markt, MVP & mehr.</div>
+                </div>
+              )}
+
+              {/* PHASE 1 — Analyse */}
+              {analyseItems.length > 0 && (() => {
+                const dlAnalyse = () => {
+                  const content = analyseItems.map(item => {
+                    const checks = (item.checklist || []).map(c => `${c.verdict} **${c.name}**: ${c.text}`).join("\n");
+                    const erfuellt = (item.bonus?.erfuellt || []).join(", ");
+                    const fehlt = (item.bonus?.fehlt || []).join(", ");
+                    return `## ${item.title}\n\n${checks}\n\n**Erfüllt:** ${erfuellt}\n**Fehlt:** ${fehlt}`;
+                  }).join("\n\n---\n\n");
+                  const blob = new Blob([`# Analyse-Bericht\n\n${content}`], { type: "text/markdown" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "analyse-bericht.md"; a.click(); URL.revokeObjectURL(url);
+                };
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div style={{ color: "#7c3aed", fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>🔍 PHASE 1 — ANALYSE</div>
+                      <button onClick={dlAnalyse} style={{ padding: "3px 10px", background: "#7c3aed18", border: "1px solid #7c3aed33", borderRadius: 5, color: "#7c3aed", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>⬇ Alle downloaden</button>
+                    </div>
+                    {analyseItems.map((item, idx) => (
+                      <div key={idx} style={{ background: "var(--c-card)", border: "1px solid #7c3aed22", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+                        <div style={{ color: "#7c3aed", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>{item.title}</div>
+                        {(item.checklist || []).map((c, i) => (
+                          <div key={i} style={{ display: "flex", gap: 6, padding: "4px 0", borderBottom: i < 9 ? "1px solid var(--c-border)" : "none" }}>
+                            <span style={{ flexShrink: 0, width: 16, textAlign: "center", fontSize: 11 }}>{c.verdict}</span>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ color: "var(--c-ts)", fontSize: 9, fontWeight: 700 }}>{c.nr}. {c.name}</span>
+                              <div style={{ color: "var(--c-td)", fontSize: 9, lineHeight: 1.4, marginTop: 1 }}>{c.text}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {item.bonus && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                            <div style={{ flex: 1, background: "#3dba7e0a", border: "1px solid #3dba7e22", borderRadius: 6, padding: "6px 8px" }}>
+                              <div style={{ color: "#3dba7e", fontSize: 8, fontWeight: 700, marginBottom: 3 }}>✅ ERFÜLLT</div>
+                              {(item.bonus.erfuellt || []).map((e, i) => <div key={i} style={{ color: "var(--c-td)", fontSize: 8 }}>• {e}</div>)}
+                            </div>
+                            <div style={{ flex: 1, background: "#ff4d6d0a", border: "1px solid #ff4d6d22", borderRadius: 6, padding: "6px 8px" }}>
+                              <div style={{ color: "#ff4d6d", fontSize: 8, fontWeight: 700, marginBottom: 3 }}>❌ FEHLT</div>
+                              {(item.bonus.fehlt || []).map((e, i) => <div key={i} style={{ color: "var(--c-td)", fontSize: 8 }}>• {e}</div>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* PHASE 2 loading */}
+              {pipelineState === "scoring" && scoringItems.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: 10, marginBottom: 20 }}>
+                  <div style={{ fontSize: 24, marginBottom: 8, animation: "pulse 1.5s infinite" }}>🎯</div>
+                  <div style={{ color: "#e8a838", fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Go/No-Go Scoring läuft...</div>
+                  <div style={{ color: "var(--c-tf)", fontSize: 10 }}>8 Kategorien × 3 Punkte = max. 24 Punkte.</div>
+                </div>
+              )}
+
+              {/* PHASE 2 — Go/No-Go */}
+              {scoringItems.length > 0 && (() => {
+                const dlScoring = () => {
+                  const content = scoringItems.map(item => {
+                    const kats = (item.kategorien || []).map(k => `- ${k.name}: ${k.punkte}/${k.max} — ${k.kommentar}`).join("\n");
+                    const rc = item.realityCheck || {};
+                    return `## ${item.title}\n\n${kats}\n\n**Gesamt: ${item.gesamt}/24** — ${item.entscheidung} ${item.emoji}\n\nReality Check:\n- Würde jemand zahlen: ${rc.wuerdejemandZahlen ? "Ja" : "Nein"}\n- Würde jemand suchen: ${rc.wuerdejemandSuchen ? "Ja" : "Nein"}\n- Kann MVP: ${rc.kannInMVP ? "Ja" : "Nein"}\n\nProfi: ${item.profi?.fazit || ""}`;
+                  }).join("\n\n---\n\n");
+                  const blob = new Blob([`# Go/No-Go Bewertung\n\n${content}`], { type: "text/markdown" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "go-nogo-bewertung.md"; a.click(); URL.revokeObjectURL(url);
+                };
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div style={{ color: "#e8a838", fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>🎯 PHASE 2 — GO/NO-GO SCORING</div>
+                      <button onClick={dlScoring} style={{ padding: "3px 10px", background: "#e8a83818", border: "1px solid #e8a83833", borderRadius: 5, color: "#e8a838", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>⬇ Alle downloaden</button>
+                    </div>
+                    {scoringItems.map((item, idx) => {
+                      const dec = item.entscheidung || "";
+                      const decColor = (dec.includes("BAUEN") && !dec.includes("NICHT")) ? "#3dba7e" : dec.includes("VERBESSERN") ? "#e8a838" : "#ff4d6d";
+                      return (
+                        <div key={idx} style={{ background: "var(--c-card)", border: `1px solid ${decColor}22`, borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <span style={{ color: "var(--c-ts)", fontSize: 10, fontWeight: 700 }}>{item.title}</span>
+                            <span style={{ marginLeft: "auto", background: `${decColor}18`, border: `1px solid ${decColor}44`, color: decColor, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>{item.emoji} {item.entscheidung} — {item.gesamt}/24</span>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
+                            {(item.kategorien || []).map((k, i) => (
+                              <div key={i} style={{ background: "var(--c-overlay)", borderRadius: 5, padding: "5px 7px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                                  <span style={{ color: "var(--c-ts)", fontSize: 8 }}>{k.name}</span>
+                                  <span style={{ color: k.punkte >= 2 ? "#3dba7e" : k.punkte === 1 ? "#e8a838" : "#ff4d6d", fontSize: 9, fontWeight: 700 }}>{k.punkte}/{k.max}</span>
+                                </div>
+                                <div style={{ color: "var(--c-td)", fontSize: 8, lineHeight: 1.3 }}>{k.kommentar}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {item.realityCheck && (
+                            <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
+                              {[
+                                ["💸 zahlen?", item.realityCheck.wuerdejemandZahlen],
+                                ["🔍 suchen?", item.realityCheck.wuerdejemandSuchen],
+                                ["⚡ MVP?", item.realityCheck.kannInMVP],
+                              ].map(([label, val], i) => (
+                                <div key={i} style={{ flex: 1, background: val ? "#3dba7e0a" : "#ff4d6d0a", border: `1px solid ${val ? "#3dba7e33" : "#ff4d6d33"}`, borderRadius: 5, padding: "4px 6px", textAlign: "center" }}>
+                                  <div style={{ fontSize: 8, color: "var(--c-td)", marginBottom: 1 }}>{label}</div>
+                                  <div style={{ fontSize: 11 }}>{val ? "✅" : "❌"}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {item.profi?.fazit && (
+                            <div style={{ color: "var(--c-tf)", fontSize: 8, fontStyle: "italic", borderTop: "1px solid var(--c-border)", paddingTop: 5 }}>
+                              Profi-Check: {item.profi.fazit}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* PHASE 3 loading */}
+              {pipelineState === "reporting" && berichtItems.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: 10, marginBottom: 20 }}>
+                  <div style={{ fontSize: 24, marginBottom: 8, animation: "pulse 1.5s infinite" }}>📋</div>
+                  <div style={{ color: "#3dba7e", fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Entscheidungsbericht wird geschrieben...</div>
+                  <div style={{ color: "var(--c-tf)", fontSize: 10 }}>Stärken, Risiken, Empfehlung.</div>
+                </div>
+              )}
+
+              {/* PHASE 3 — Bericht */}
+              {berichtItems.length > 0 && (() => {
+                const dlBericht = () => {
+                  const content = berichtItems.map(item => {
+                    const staerken = (item.staerken || []).map(s => `- ✅ ${s}`).join("\n");
+                    const risiken = (item.risiken || []).map(r => `- ⚠️ ${r}`).join("\n");
+                    return `## ${item.name || item.title}\n\n${item.kurzbeschreibung}\n\n**Stärken:**\n${staerken}\n\n**Risiken:**\n${risiken}\n\n**Empfehlung:** ${item.empfehlung}`;
+                  }).join("\n\n---\n\n");
+                  const blob = new Blob([`# Entscheidungsbericht\n\n${content}`], { type: "text/markdown" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "entscheidungsbericht.md"; a.click(); URL.revokeObjectURL(url);
+                };
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div style={{ color: "#3dba7e", fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>📋 PHASE 3 — ENTSCHEIDUNGSBERICHT</div>
+                      <button onClick={dlBericht} style={{ padding: "3px 10px", background: "#3dba7e18", border: "1px solid #3dba7e33", borderRadius: 5, color: "#3dba7e", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>⬇ Alle downloaden</button>
+                    </div>
+                    {berichtItems.map((item, idx) => (
+                      <div key={idx} style={{ background: "var(--c-card)", border: "1px solid #3dba7e22", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+                        <div style={{ marginBottom: 6 }}>
+                          <span style={{ color: "#3dba7e", fontSize: 11, fontWeight: 700 }}>{item.name || item.title}</span>
+                          {item.name && item.name !== item.title && <span style={{ color: "var(--c-tf)", fontSize: 9, marginLeft: 6 }}>({item.title})</span>}
+                        </div>
+                        <div style={{ color: "var(--c-td)", fontSize: 10, lineHeight: 1.5, marginBottom: 8 }}>{item.kurzbeschreibung}</div>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: "#3dba7e", fontSize: 8, fontWeight: 700, marginBottom: 4 }}>✅ STÄRKEN</div>
+                            {(item.staerken || []).map((s, i) => (
+                              <div key={i} style={{ display: "flex", gap: 4, marginBottom: 3 }}>
+                                <span style={{ color: "#3dba7e44", fontSize: 8, flexShrink: 0 }}>▸</span>
+                                <span style={{ color: "var(--c-td)", fontSize: 9, lineHeight: 1.4 }}>{s}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: "#ff4d6d", fontSize: 8, fontWeight: 700, marginBottom: 4 }}>⚠️ RISIKEN</div>
+                            {(item.risiken || []).map((r, i) => (
+                              <div key={i} style={{ display: "flex", gap: 4, marginBottom: 3 }}>
+                                <span style={{ color: "#ff4d6d44", fontSize: 8, flexShrink: 0 }}>▸</span>
+                                <span style={{ color: "var(--c-td)", fontSize: 9, lineHeight: 1.4 }}>{r}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ background: "#3dba7e0a", border: "1px solid #3dba7e22", borderRadius: 7, padding: "7px 9px" }}>
+                          <div style={{ color: "#3dba7e88", fontSize: 8, fontWeight: 700, marginBottom: 3 }}>EMPFEHLUNG</div>
+                          <div style={{ color: "var(--c-ts)", fontSize: 10, lineHeight: 1.5 }}>{item.empfehlung}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* PHASE 4 loading */}
+              {pipelineState === "generating" && pipelineItems.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: 10, marginBottom: 20 }}>
+                  <div style={{ fontSize: 24, marginBottom: 8, animation: "pulse 1.5s infinite" }}>✍️</div>
+                  <div style={{ color: "#ea580c", fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Prompt Generator schreibt...</div>
+                  <div style={{ color: "var(--c-tf)", fontSize: 10 }}>Wählt Stack, UI-Design, baut Build-Prompts.</div>
+                </div>
+              )}
+
+              {/* PHASE 4 — Build Prompts */}
+              {pipelineState === "done" && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ color: "#ea580c", fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>✍️ PHASE 4 — BUILD PROMPTS</div>
+                    <div style={{ display: "flex", gap: 5 }}>
+                      <button onClick={handleSendNtfy} style={{
+                        padding: "3px 10px", borderRadius: 5, fontSize: 9, cursor: "pointer", fontFamily: "inherit",
+                        background: ntfyStatus === "sent" ? "#3dba7e18" : ntfyStatus === "error" ? "#ff4d6d18" : "#7c3aed18",
+                        color: ntfyStatus === "sent" ? "#3dba7e" : ntfyStatus === "error" ? "#ff4d6d" : "#7c3aed",
+                        border: `1px solid ${ntfyStatus === "sent" ? "#3dba7e44" : ntfyStatus === "error" ? "#ff4d6d44" : "#7c3aed44"}`,
+                      }}>{ntfyStatus === "sent" ? "✓ Gesendet" : ntfyStatus === "error" ? "✗ Fehler" : "🔔 Push"}</button>
+                      <button onClick={() => {
+                        const content = pipelineItems.map((item, i) => `# ${i + 1}. ${item.title}\n\n**Stack:** ${item.stack}\n**Typ:** ${item.isMobile ? "📱 Mobile App" : "🌐 Web App"}\n**Begründung:** ${item.stackReason}\n\n## Build-Prompt\n\n${item.prompt}`).join("\n\n---\n\n");
+                        const blob = new Blob([content], { type: "text/markdown" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = "build-prompts.md"; a.click(); URL.revokeObjectURL(url);
+                      }} style={{ padding: "3px 10px", background: "#ea580c18", border: "1px solid #ea580c33", borderRadius: 5, color: "#ea580c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>⬇ Alle downloaden</button>
+                    </div>
+                  </div>
+                  {pipelineItems.map((item, idx) => (
+                    <div key={idx} style={{ background: "var(--c-card)", border: "1px solid #ea580c22", borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{ color: "#ea580c", fontSize: 11, fontWeight: 700 }}>#{idx + 1} — {item.title}</span>
+                        <span style={{ marginLeft: "auto", background: item.isMobile ? "#7c3aed18" : "#3dba7e18", border: `1px solid ${item.isMobile ? "#7c3aed33" : "#3dba7e33"}`, color: item.isMobile ? "#7c3aed88" : "#3dba7e88", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>{item.isMobile ? "📱 Mobile" : "🌐 Web"}</span>
+                        <span style={{ background: "#ea580c18", border: "1px solid #ea580c33", color: "#ea580c88", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>{item.stack}</span>
+                      </div>
+                      {item.stackReason && (
+                        <div style={{ color: "var(--c-tf)", fontSize: 9, fontStyle: "italic", marginBottom: 6 }}>{item.stackReason}</div>
+                      )}
+                      <div style={{ background: "var(--c-overlay)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "8px 10px", maxHeight: 150, overflowY: "auto", marginBottom: 8 }}>
+                        <pre style={{ color: "var(--c-ts)", fontSize: 9.5, margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.65, fontFamily: "inherit" }}>{item.prompt}</pre>
+                      </div>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        <button onClick={() => handleCopy(item.prompt, idx)} style={{
+                          flex: 1, padding: "5px 0", background: copiedIdx === idx ? "#3dba7e18" : "var(--c-btn)",
+                          border: `1px solid ${copiedIdx === idx ? "#3dba7e44" : "var(--c-border)"}`,
+                          borderRadius: 5, color: copiedIdx === idx ? "#3dba7e" : "var(--c-ts)", fontSize: 9, cursor: "pointer", fontFamily: "inherit",
+                        }}>{copiedIdx === idx ? "✓ Kopiert!" : "📋 Kopieren"}</button>
+                        <button onClick={() => handleDownload(item, idx)} style={{
+                          flex: 1, padding: "5px 0", background: "var(--c-btn)", border: "1px solid var(--c-border)",
+                          borderRadius: 5, color: "var(--c-ts)", fontSize: 9, cursor: "pointer", fontFamily: "inherit",
+                        }}>⬇ .md</button>
+                        <button onClick={() => handleBuildN8n(item, idx)} disabled={buildStatus[idx] === "sending"} style={{
+                          flex: 2, padding: "5px 0", borderRadius: 5, fontSize: 9, fontWeight: 700,
+                          cursor: buildStatus[idx] === "sending" ? "not-allowed" : "pointer", fontFamily: "inherit",
+                          background: buildStatus[idx] === "sent" ? "#3dba7e18" : buildStatus[idx] === "error" ? "#ff4d6d18" : "linear-gradient(135deg,#7c3aed,#ea580c)",
+                          border: buildStatus[idx] === "sent" ? "1px solid #3dba7e44" : buildStatus[idx] === "error" ? "1px solid #ff4d6d44" : "none",
+                          color: buildStatus[idx] === "sent" ? "#3dba7e" : buildStatus[idx] === "error" ? "#ff4d6d" : "#fff",
+                        }}>
+                          {buildStatus[idx] === "sending" ? "⏳ Wird gesendet..." : buildStatus[idx] === "sent" ? "✓ n8n gestartet!" : buildStatus[idx] === "error" ? "✗ Fehler" : "▶ Build starten"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
