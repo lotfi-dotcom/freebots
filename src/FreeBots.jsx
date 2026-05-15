@@ -633,6 +633,79 @@ function MessageBubble({ msg }) {
   );
 }
 
+function IdeaDBCard({ idea, editing, onEdit, onClose, onUpdate }) {
+  const bot = BOT_MAP[idea.fromId];
+  const [form, setForm] = useState({
+    title: idea.title,
+    description: idea.description,
+    branche: idea.branche || "",
+    typ: idea.typ || "",
+    zielgruppe: idea.zielgruppe || "",
+    status: idea.status || "Idee",
+    score: idea.score || "",
+  });
+
+  const statusColors = { "Idee": "#7c3aed", "In Umsetzung": "#e8a838", "Fertig": "#3dba7e", "Verworfen": "#ff4d6d" };
+  const scoreColors  = { "Go": "#3dba7e", "Pivot erwägen": "#e8a838", "No-Go": "#ff4d6d" };
+
+  return (
+    <div style={{ background: "var(--c-card)", border: `1px solid ${bot?.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+      {!editing ? (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: `${bot?.color}22`, border: `1px solid ${bot?.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{bot?.emoji}</div>
+            <span style={{ color: bot?.color, fontSize: 10, fontWeight: 700 }}>{bot?.name}</span>
+            <span style={{ color: "var(--c-tf)", fontSize: 8, marginLeft: "auto" }}>{idea.time}</span>
+          </div>
+          <div style={{ color: "var(--c-tp)", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{idea.title}</div>
+          <div style={{ color: "var(--c-td)", fontSize: 10, lineHeight: 1.6, marginBottom: 8 }}>{idea.description}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+            {idea.branche    && <span style={{ background: "#7c3aed12", border: "1px solid #7c3aed33", color: "#7c3aed", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>{idea.branche}</span>}
+            {idea.typ        && <span style={{ background: "#3dba7e12", border: "1px solid #3dba7e33", color: "#3dba7e", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>{idea.typ}</span>}
+            {idea.zielgruppe && <span style={{ background: "#e8a83812", border: "1px solid #e8a83833", color: "#e8a838", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>{idea.zielgruppe}</span>}
+            {idea.status     && <span style={{ background: `${statusColors[idea.status] || "#444"}12`, border: `1px solid ${statusColors[idea.status] || "#444"}33`, color: statusColors[idea.status] || "#444", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>● {idea.status}</span>}
+            {idea.score      && <span style={{ background: `${scoreColors[idea.score]  || "#444"}12`, border: `1px solid ${scoreColors[idea.score]  || "#444"}33`, color: scoreColors[idea.score]  || "#444", fontSize: 8, padding: "1px 6px", borderRadius: 3 }}>{idea.score}</span>}
+          </div>
+          <button onClick={onEdit} style={{ padding: "4px 12px", background: "var(--c-btn)", border: "1px solid var(--c-border)", borderRadius: 5, color: "var(--c-ts)", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>✏️ Bearbeiten</button>
+        </>
+      ) : (
+        <div>
+          <div style={{ color: "var(--c-ts)", fontSize: 10, fontWeight: 700, marginBottom: 10 }}>✏️ Idee bearbeiten</div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ color: "var(--c-tf)", fontSize: 8, marginBottom: 3 }}>TITEL</div>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={{ width: "100%", background: "var(--c-overlay)", border: "1px solid var(--c-border)", borderRadius: 5, padding: "5px 8px", color: "var(--c-ts)", fontSize: 10, fontFamily: "inherit", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ color: "var(--c-tf)", fontSize: 8, marginBottom: 3 }}>BESCHREIBUNG</div>
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} style={{ width: "100%", background: "var(--c-overlay)", border: "1px solid var(--c-border)", borderRadius: 5, padding: "5px 8px", color: "var(--c-ts)", fontSize: 10, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
+            {[
+              { key: "branche",    label: "BRANCHE",    opts: ["HealthTech","FinTech","EdTech","Retail","HRTech","AgriTech","LegalTech","Sonstiges"] },
+              { key: "typ",        label: "TYP",        opts: ["App","SaaS","Marktplatz","Tool","Hardware","Platform"] },
+              { key: "zielgruppe", label: "ZIELGRUPPE", opts: ["B2B","B2C","Entwickler","Studenten","KMU","Enterprise"] },
+              { key: "status",     label: "STATUS",     opts: ["Idee","In Umsetzung","Fertig","Verworfen"] },
+              { key: "score",      label: "SCORE",      opts: ["Go","Pivot erwägen","No-Go"] },
+            ].map(({ key, label, opts }) => (
+              <div key={key}>
+                <div style={{ color: "var(--c-tf)", fontSize: 8, marginBottom: 3 }}>{label}</div>
+                <select value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={{ width: "100%", background: "var(--c-card)", border: "1px solid var(--c-border)", borderRadius: 5, padding: "4px 6px", color: "var(--c-ts)", fontSize: 9, fontFamily: "inherit" }}>
+                  <option value="">—</option>
+                  {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => onUpdate(idea.id, form)} style={{ flex: 2, padding: "6px 0", background: "linear-gradient(135deg,#7c3aed,#ea580c)", border: "none", borderRadius: 6, color: "#fff", fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✓ Speichern</button>
+            <button onClick={onClose} style={{ flex: 1, padding: "6px 0", background: "var(--c-btn)", border: "1px solid var(--c-border)", borderRadius: 6, color: "var(--c-ts)", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main App ────────────────────────────────────────────────────
 export default function FreeBots() {
   const [lightMode, setLightMode] = useState(false);
@@ -656,6 +729,8 @@ export default function FreeBots() {
   const [copiedIdx, setCopiedIdx] = useState(null);
   const [ntfyStatus, setNtfyStatus] = useState("idle");
   const [buildStatus, setBuildStatus] = useState({});
+  const [ideenDBFilter, setIdeenDBFilter] = useState({ branche: null, typ: null, zielgruppe: null, status: null });
+  const [editingIdea, setEditingIdea] = useState(null);
 
   const runningRef = useRef(false);
   const messagesRef = useRef([]);
@@ -730,6 +805,7 @@ export default function FreeBots() {
           description: result.idea.description,
           why_now: result.idea.why_now || "",
           time: getTime(),
+          branche: null, typ: null, zielgruppe: null, status: "Idee", score: null,
         };
         ideasRef.current = [...ideasRef.current, newIdea];
         setIdeas([...ideasRef.current]);
@@ -790,6 +866,12 @@ export default function FreeBots() {
     setPipelineState("idle"); setAnalyseItems([]); setScoringItems([]); setBerichtItems([]); setPipelineItems([]);
     setBuildStatus({}); setNtfyStatus("idle");
     setActiveTab("chat");
+  };
+
+  const handleUpdateIdea = (ideaId, updates) => {
+    setIdeas(prev => prev.map(idea => idea.id === ideaId ? { ...idea, ...updates } : idea));
+    ideasRef.current = ideasRef.current.map(idea => idea.id === ideaId ? { ...idea, ...updates } : idea);
+    setEditingIdea(null);
   };
 
   const handleStartPipeline = async () => {
@@ -1078,6 +1160,7 @@ export default function FreeBots() {
               { id: "chat", label: "💬 Gespräch", count: messages.length },
               { id: "ideas", label: "💡 Ideen", count: ideas.length },
               { id: "pipeline", label: "🚀 Pipeline", count: pipelineItems.length },
+              { id: "ideendb", label: "🗄️ IdeenDB", count: ideas.length },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
                 flex: 1, padding: "10px 0",
@@ -1445,6 +1528,50 @@ export default function FreeBots() {
               )}
             </div>
           )}
+
+          {activeTab === "ideendb" && (() => {
+            const filteredIdeas = ideas.filter(idea => {
+              if (ideenDBFilter.branche    && idea.branche    !== ideenDBFilter.branche)    return false;
+              if (ideenDBFilter.typ        && idea.typ        !== ideenDBFilter.typ)        return false;
+              if (ideenDBFilter.zielgruppe && idea.zielgruppe !== ideenDBFilter.zielgruppe) return false;
+              if (ideenDBFilter.status     && idea.status     !== ideenDBFilter.status)     return false;
+              return true;
+            });
+            return (
+              <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
+                <div style={{ marginBottom: 12 }}>
+                  {[
+                    { key: "branche",    label: "Branche",    opts: ["HealthTech","FinTech","EdTech","Retail","HRTech","AgriTech","LegalTech","Sonstiges"] },
+                    { key: "typ",        label: "Typ",        opts: ["App","SaaS","Marktplatz","Tool","Hardware"] },
+                    { key: "zielgruppe", label: "Zielgruppe", opts: ["B2B","B2C","Entwickler","Studenten","KMU"] },
+                    { key: "status",     label: "Status",     opts: ["Idee","In Umsetzung","Fertig","Verworfen"] },
+                  ].map(({ key, label, opts }) => (
+                    <div key={key} style={{ marginBottom: 6 }}>
+                      <div style={{ color: "var(--c-tf)", fontSize: 8, letterSpacing: 1, marginBottom: 4 }}>{label.toUpperCase()}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        <button onClick={() => setIdeenDBFilter(f => ({ ...f, [key]: null }))} style={{ padding: "2px 8px", borderRadius: 4, fontSize: 8, cursor: "pointer", fontFamily: "inherit", background: ideenDBFilter[key] === null ? "#7c3aed22" : "var(--c-btn)", border: `1px solid ${ideenDBFilter[key] === null ? "#7c3aed44" : "var(--c-border)"}`, color: ideenDBFilter[key] === null ? "#7c3aed" : "var(--c-tf)" }}>Alle</button>
+                        {opts.map(opt => (
+                          <button key={opt} onClick={() => setIdeenDBFilter(f => ({ ...f, [key]: f[key] === opt ? null : opt }))} style={{ padding: "2px 8px", borderRadius: 4, fontSize: 8, cursor: "pointer", fontFamily: "inherit", background: ideenDBFilter[key] === opt ? "#7c3aed22" : "var(--c-btn)", border: `1px solid ${ideenDBFilter[key] === opt ? "#7c3aed44" : "var(--c-border)"}`, color: ideenDBFilter[key] === opt ? "#7c3aed" : "var(--c-tf)" }}>{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ borderTop: "1px solid var(--c-border)", paddingTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ color: "var(--c-tf)", fontSize: 8 }}>{filteredIdeas.length} von {ideas.length} Ideen</span>
+                    <button onClick={() => setIdeenDBFilter({ branche: null, typ: null, zielgruppe: null, status: null })} style={{ padding: "2px 8px", background: "transparent", border: "1px solid var(--c-border)", borderRadius: 4, color: "var(--c-tf)", fontSize: 8, cursor: "pointer", fontFamily: "inherit" }}>✕ Filter zurücksetzen</button>
+                  </div>
+                </div>
+                {filteredIdeas.length === 0 ? (
+                  <div style={{ color: "var(--c-tf)", fontSize: 10, textAlign: "center", marginTop: 30 }}>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>🗄️</div>
+                    {ideas.length === 0 ? "Noch keine Ideen. Starte die Bots im Gespräch-Tab." : "Keine Ideen passen zum Filter."}
+                  </div>
+                ) : filteredIdeas.map(idea => (
+                  <IdeaDBCard key={idea.id} idea={idea} editing={editingIdea === idea.id} onEdit={() => setEditingIdea(idea.id)} onClose={() => setEditingIdea(null)} onUpdate={handleUpdateIdea} />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
